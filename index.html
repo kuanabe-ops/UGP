@@ -26,7 +26,7 @@
         .sorting-active { background-color: #f9fafb; border: 2px dashed #e5e7eb !important; }
         .selected-for-move { background-color: #111111 !important; color: white !important; transform: scale(1.02); z-index: 10; }
         
-        input[type="date"] { display: block; text-align: left; -webkit-appearance: none; width: 100%; }
+        input[type="date"], input[type="time"] { display: block; text-align: left; -webkit-appearance: none; width: 100%; }
     </style>
 </head>
 <body class="bg-white text-neutral-800">
@@ -35,13 +35,17 @@
         <div id="view-container" class="flex-1 overflow-hidden"></div>
 
         <nav id="bottom-nav" class="bg-white/90 backdrop-blur-md border-t border-neutral-100 flex justify-around p-4 pb-8 z-20">
-            <button onclick="switchTab('gear')" id="nav-gear" class="flex flex-col items-center gap-1 w-1/2 text-neutral-900 transition-colors">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+            <button onclick="switchTab('gear')" id="nav-gear" class="flex flex-col items-center gap-1 w-1/3 text-neutral-900 transition-colors">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
                 <span class="text-[9px] uppercase tracking-widest font-bold">裝備庫</span>
             </button>
-            <button onclick="switchTab('trips')" id="nav-trips" class="flex flex-col items-center gap-1 w-1/2 text-neutral-300 transition-colors">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-1.447.894l-3.659-1.83a2 2 0 0 0-1.788 0l-4.212 2.106a2 2 0 0 1-1.788 0l-3.659-1.83A1 1 0 0 0 3 17.619V4.854a1 1 0 0 1 1.447-.894l3.659 1.83a2 2 0 0 0 1.788 0z"/><path d="M9 3.712V18.513"/><path d="M15 5.487V20.288"/></svg>
+            <button onclick="switchTab('plans')" id="nav-plans" class="flex flex-col items-center gap-1 w-1/3 text-neutral-300 transition-colors">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
                 <span class="text-[9px] uppercase tracking-widest font-bold">行程規劃</span>
+            </button>
+            <button onclick="switchTab('trips')" id="nav-trips" class="flex flex-col items-center gap-1 w-1/3 text-neutral-300 transition-colors">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 7V6a4 4 0 0 1 8 0v1" /><rect x="6" y="7" width="12" height="13" rx="3" /><line x1="9" y1="13" x2="15" y2="13" /></svg>
+                <span class="text-[9px] uppercase tracking-widest font-bold">行李清單</span>
             </button>
         </nav>
     </div>
@@ -75,6 +79,8 @@
         let gear = JSON.parse(localStorage.getItem('ultra_gear') || '[]');
         let categories = JSON.parse(localStorage.getItem('ultra_cats') || '[{"id":"c1","name":"睡眠系統"},{"id":"c2","name":"背負系統"},{"id":"c3","name":"炊具飲食"}]');
         let trips = JSON.parse(localStorage.getItem('ultra_trips') || '[]');
+        let plans = JSON.parse(localStorage.getItem('ultra_plans') || '[]');
+        
         let activeTab = 'gear', currentView = 'list', editingId = null, tempFormData = {}, tripSortMode = 'date', catSortMode = false;
         let selectedCatId = null, pendingImportFile = null;
         let lastScrollTop = 0;
@@ -89,6 +95,13 @@
             end.setDate(start.getDate() + (parseInt(days)||1) - 1);
             const f = d => `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
             return f(start) === f(end) ? f(start) : `${f(start)} ~ ${f(end)}`;
+        };
+
+        const addMinutes = (timeStr, mins) => {
+            if(!timeStr) return "--:--";
+            let [h, m] = timeStr.split(':').map(Number);
+            let d = new Date(); d.setHours(h, m + mins);
+            return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
         };
 
         const getTripStats = (data) => {
@@ -131,17 +144,17 @@
         function render() {
             const container = document.getElementById('view-container');
             const nav = document.getElementById('bottom-nav');
-            const gearBtn = document.getElementById('nav-gear');
-            const tripBtn = document.getElementById('nav-trips');
             
             nav.classList.toggle('hide', currentView !== 'list');
-            gearBtn.className = `flex flex-col items-center gap-1 w-1/2 transition-colors ${activeTab === 'gear' ? 'text-neutral-900' : 'text-neutral-300'}`;
-            tripBtn.className = `flex flex-col items-center gap-1 w-1/2 transition-colors ${activeTab === 'trips' ? 'text-neutral-900' : 'text-neutral-300'}`;
+            document.getElementById('nav-gear').className = `flex flex-col items-center gap-1 w-1/3 transition-colors ${activeTab === 'gear' ? 'text-neutral-900' : 'text-neutral-300'}`;
+            document.getElementById('nav-plans').className = `flex flex-col items-center gap-1 w-1/3 transition-colors ${activeTab === 'plans' ? 'text-neutral-900' : 'text-neutral-300'}`;
+            document.getElementById('nav-trips').className = `flex flex-col items-center gap-1 w-1/3 transition-colors ${activeTab === 'trips' ? 'text-neutral-900' : 'text-neutral-300'}`;
             
             if (currentView === 'list') renderListView(container);
             else if (currentView === 'gear-form') renderGearForm(container);
             else if (currentView === 'cat-manager') renderCatManager(container);
             else if (currentView === 'trip-form') renderTripForm(container);
+            else if (currentView === 'plan-form') renderPlanForm(container);
         }
 
         function renderListView(container) {
@@ -154,8 +167,14 @@
                     html += `<h3 class="text-[10px] uppercase tracking-widest text-neutral-400 border-b pb-2 mb-4 mt-8 font-bold">${c.name}</h3>`;
                     items.forEach(i => html += `<div onclick="editGear('${i.id}')" class="flex justify-between items-center py-4 border-b border-neutral-50"><div><div class="text-sm font-medium">${i.name}</div><div class="text-[10px] text-neutral-400">${i.desc||''}</div></div><div class="text-xs font-medium text-neutral-400">${i.weight}g</div></div>`);
                 });
+            } else if (activeTab === 'plans') {
+                html += `<div class="flex justify-between items-center mb-6"><h2 class="text-2xl font-semibold">行程規劃</h2></div>`;
+                let sortedPlans = [...plans].sort((a,b) => new Date(a.startDate||0) - new Date(b.startDate||0));
+                sortedPlans.forEach(p => {
+                    html += `<div onclick="editPlan('${p.id}')" class="p-5 border rounded-2xl shadow-sm bg-white mb-4 active:scale-[0.98] transition-all"><div class="flex justify-between items-start mb-1"><h3 class="font-medium">${p.name}</h3><span class="text-[10px] text-neutral-400 font-mono">${p.days} 天</span></div><span class="text-[10px] text-neutral-400 block mb-4">${getDateRange(p.startDate, p.days)}</span><div class="flex justify-between items-end"><div class="text-xs text-neutral-400">景點數 <b class="text-neutral-800">${(p.dailySchedules||[]).reduce((acc,day)=>acc+(day.spots?.length||0),0)}</b></div><svg class="text-neutral-200" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></div></div>`;
+                });
             } else {
-                html += `<div class="flex justify-between items-center mb-6"><h2 class="text-2xl font-semibold">行程規劃</h2><div class="flex bg-neutral-100 rounded-lg p-1"><button onclick="tripSortMode='date';render()" class="px-3 py-1 text-xs rounded-md ${tripSortMode==='date'?'bg-white shadow':'text-neutral-400'}">日期</button><button onclick="tripSortMode='weight';render()" class="px-3 py-1 text-xs rounded-md ${tripSortMode==='weight'?'bg-white shadow':'text-neutral-400'}">重量</button></div></div>`;
+                html += `<div class="flex justify-between items-center mb-6"><h2 class="text-2xl font-semibold">行李清單</h2><div class="flex bg-neutral-100 rounded-lg p-1"><button onclick="tripSortMode='date';render()" class="px-3 py-1 text-xs rounded-md ${tripSortMode==='date'?'bg-white shadow':'text-neutral-400'}">日期</button><button onclick="tripSortMode='weight';render()" class="px-3 py-1 text-xs rounded-md ${tripSortMode==='weight'?'bg-white shadow':'text-neutral-400'}">重量</button></div></div>`;
                 let sortedTrips = [...trips];
                 if(tripSortMode==='date') sortedTrips.sort((a,b)=> new Date(b.startDate||0) - new Date(a.startDate||0));
                 else sortedTrips.sort((a,b)=> getTripStats(b).total - getTripStats(a).total);
@@ -185,13 +204,13 @@
             container.innerHTML = `<div class="flex flex-col h-full bg-white animate-in">
                 <div class="p-4 border-b flex justify-between items-center"><button onclick="currentView='list'; render()" class="text-neutral-400">關閉</button><div class="flex gap-3 items-center">${editingId?`<button onclick="triggerDelete('trip','${editingId}')" class="text-red-500 text-xs">刪除</button>`:''}<button onclick="submitTrip()" class="px-6 py-2 bg-neutral-900 text-white rounded-full text-xs font-medium">儲存</button></div></div>
                 <div id="trip-form-content" class="flex-1 overflow-y-auto p-6 no-scrollbar">
-                    <input id="t-name" class="text-2xl font-semibold w-full outline-none mb-6 bg-transparent" placeholder="行程名稱" value="${tempFormData.name||''}" oninput="tempFormData.name=this.value">
+                    <input id="t-name" class="text-2xl font-semibold w-full outline-none mb-6 bg-transparent" placeholder="行李清單名稱" value="${tempFormData.name||''}" oninput="tempFormData.name=this.value">
                     <div class="flex gap-4 mb-2">
                         <div class="flex-1"><label class="text-[9px] uppercase font-bold text-neutral-400 mb-1 block">日期</label><input id="t-date" type="date" class="block w-full outline-none text-sm bg-transparent p-0 m-0" value="${tempFormData.startDate||''}" oninput="tempFormData.startDate=this.value"></div>
-                        <div class="w-20 border-l border-neutral-100 pl-4"><label class="text-[9px] uppercase font-bold text-neutral-400 mb-1 block">天數</label><input id="t-days" type="number" class="w-full outline-none text-sm bg-transparent" value="${tempFormData.days||1}" oninput="tempFormData.days=this.value"></div>
+                        <div class="w-20 border-l border-neutral-100 pl-4"><label class="text-[9px] uppercase font-bold text-neutral-400 mb-1 block">天數</label><input id="t-days" type="number" class="w-full outline-none text-sm bg-transparent" value="${tempFormData.days||1}" oninput="tempFormData.days=this.value; renderTripForm(document.getElementById('view-container'))"></div>
                     </div>
                     <div class="text-[10px] text-neutral-400 mb-8 border-b pb-4 text-left">${getDateRange(tempFormData.startDate, tempFormData.days)}</div>
-                    ${stats.total > 0 ? `<div class="mb-10 bg-neutral-50/50 p-6 rounded-3xl"><div class="flex items-center justify-around gap-4 mb-6"><div class="h-32 w-32 relative flex-shrink-0"><svg viewBox="0 0 36 36" class="w-full h-full transform -rotate-90">${generatePieSVG(stats.pieData)}</svg><div class="absolute inset-0 flex flex-col items-center justify-center"><div class="text-[8px] uppercase text-neutral-300 font-bold">Total</div><div class="text-base font-bold">${(stats.total/1000).toFixed(2)}<span class="text-[10px] ml-0.5">kg</span></div></div></div><div class="flex flex-col gap-4"><div class="border-l-2 border-neutral-800 pl-3"><div class="text-[9px] uppercase font-bold text-neutral-400 mb-0.5">非消耗品</div><div class="text-sm font-bold text-neutral-800">${(gearWeight/1000).toFixed(2)}<span class="text-[10px] ml-0.5 font-normal">kg</span></div></div><div class="border-l-2 border-neutral-300 pl-3"><div class="text-[9px] uppercase font-bold text-neutral-400 mb-0.5">消耗品</div><div class="text-sm font-bold text-neutral-800">${(consWeight/1000).toFixed(2)}<span class="text-[10px] ml-0.5 font-normal">kg</span></div></div></div></div><div class="w-full space-y-1.5 pt-4 border-t border-neutral-100">${stats.pieData.map((d,i)=>`<div class="flex justify-between text-[10px] items-center"><div class="flex items-center gap-2"><div class="w-1.5 h-1.5 rounded-full" style="background:${d.name==='消耗品'?'#111111':COLORS[i%COLORS.length]}"></div><span class="text-neutral-500">${d.name}</span></div><div class="font-mono text-neutral-400">${(d.percent*100).toFixed(1)}%</div></div>`).join('')}</div></div>` : ''}
+                    ${stats.total > 0 ? `<div class="mb-10 bg-neutral-50/50 p-6 rounded-3xl"><div class="flex items-center justify-around gap-4 mb-6"><div class="h-32 w-32 relative flex-shrink-0"><svg viewBox="0 0 36 36" class="w-full h-full transform -rotate-90">${generatePieSVG(stats.pieData)}</svg><div class="absolute inset-0 flex flex-col items-center justify-center"><div class="text-[8px] uppercase text-neutral-300 font-bold">Total</div><div class="text-base font-bold">${(stats.total/1000).toFixed(2)}<span class="text-[10px] ml-0.5">kg</span></div></div></div><div class="flex flex-col gap-4"><div class="border-l-2 border-neutral-800 pl-3"><div class="text-[9px] uppercase font-bold text-neutral-400 mb-0.5">基礎重量</div><div class="text-sm font-bold text-neutral-800">${(gearWeight/1000).toFixed(2)}<span class="text-[10px] ml-0.5 font-normal">kg</span></div></div><div class="border-l-2 border-neutral-300 pl-3"><div class="text-[9px] uppercase font-bold text-neutral-400 mb-0.5">消耗品</div><div class="text-sm font-bold text-neutral-800">${(consWeight/1000).toFixed(2)}<span class="text-[10px] ml-0.5 font-normal">kg</span></div></div></div></div><div class="w-full space-y-1.5 pt-4 border-t border-neutral-100">${stats.pieData.map((d,i)=>`<div class="flex justify-between text-[10px] items-center"><div class="flex items-center gap-2"><div class="w-1.5 h-1.5 rounded-full" style="background:${d.name==='消耗品'?'#111111':COLORS[i%COLORS.length]}"></div><span class="text-neutral-500">${d.name}</span></div><div class="font-mono text-neutral-400">${(d.percent*100).toFixed(1)}%</div></div>`).join('')}</div></div>` : ''}
                     <div class="mb-10">
                         <div class="text-[10px] uppercase font-bold text-neutral-400 mb-2 border-b border-neutral-100 pb-1"><span>消耗品</span></div>
                         ${consumables.map((c, idx) => `<div class="flex items-center justify-between py-3 border-b border-neutral-50"><div><div class="text-sm font-medium">${c.name}</div><div class="text-[10px] text-neutral-400">${c.weight}g</div></div><button onclick="removeConsumable(${idx})" class="text-neutral-300 hover:text-red-500 p-2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>`).join('')}
@@ -222,16 +241,86 @@
             });
         }
 
+        function renderPlanForm(container) {
+            let daysHtml = "";
+            const numDays = parseInt(tempFormData.days) || 1;
+            if(!tempFormData.dailySchedules) tempFormData.dailySchedules = Array.from({length: numDays}, () => ({ startTime: "08:00", spots: [] }));
+            
+            if(tempFormData.dailySchedules.length < numDays) {
+                while(tempFormData.dailySchedules.length < numDays) tempFormData.dailySchedules.push({ startTime: "08:00", spots: [] });
+            }
+
+            tempFormData.dailySchedules.slice(0, numDays).forEach((day, dayIdx) => {
+                let currentTime = day.startTime;
+                daysHtml += `<div class="mb-10 p-5 bg-neutral-50 rounded-3xl border border-neutral-100">
+                    <div class="flex justify-between items-center mb-4">
+                        <h4 class="font-bold text-sm">DAY ${dayIdx+1}</h4>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[9px] uppercase font-bold text-neutral-400">起始</span>
+                            <input type="time" class="bg-white border rounded-lg px-2 py-1 text-xs outline-none" value="${day.startTime}" onchange="tempFormData.dailySchedules[${dayIdx}].startTime=this.value; renderPlanForm(document.getElementById('view-container'))">
+                        </div>
+                    </div>
+                    <div class="space-y-3">
+                        ${(day.spots || []).map((spot, spotIdx) => {
+                            const start = currentTime;
+                            const end = addMinutes(start, parseInt(spot.duration)||0);
+                            currentTime = end;
+                            return `<div class="bg-white p-4 rounded-2xl shadow-sm border border-neutral-100 relative group">
+                                <div class="flex justify-between items-start mb-3">
+                                    <div class="text-neutral-900 text-lg font-bold font-mono tracking-tight">${start} - ${end}</div>
+                                    <div class="flex gap-1">
+                                        <button onclick="moveSpot(${dayIdx}, ${spotIdx}, -1)" class="text-neutral-300 hover:text-neutral-600 p-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m18 15-6-6-6 6"/></svg></button>
+                                        <button onclick="moveSpot(${dayIdx}, ${spotIdx}, 1)" class="text-neutral-300 hover:text-neutral-600 p-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></button>
+                                        <button onclick="removeSpot(${dayIdx}, ${spotIdx})" class="text-red-200 hover:text-red-500 ml-1 p-1"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+                                    </div>
+                                </div>
+                                <input class="w-full text-sm font-medium outline-none mb-1 bg-transparent" placeholder="輸入景點名稱" value="${spot.name||''}" oninput="tempFormData.dailySchedules[${dayIdx}].spots[${spotIdx}].name=this.value">
+                                <div class="flex gap-2 items-center mt-3">
+                                    <input class="flex-1 bg-neutral-50 px-3 py-2 rounded-xl text-xs outline-none" placeholder="備註..." value="${spot.notes||''}" oninput="tempFormData.dailySchedules[${dayIdx}].spots[${spotIdx}].notes=this.value">
+                                    <div class="w-24 bg-neutral-100 px-3 py-2 rounded-xl flex items-center gap-1">
+                                        <input type="number" class="w-full bg-transparent text-xs outline-none text-right font-bold" placeholder="0" value="${spot.duration||''}" oninput="tempFormData.dailySchedules[${dayIdx}].spots[${spotIdx}].duration=this.value" onchange="renderPlanForm(document.getElementById('view-container'))">
+                                        <span class="text-[9px] text-neutral-400 font-bold">MIN</span>
+                                    </div>
+                                </div>
+                            </div>`;
+                        }).join('')}
+                        <button onclick="addSpot(${dayIdx})" class="w-full py-3 border-2 border-dashed border-neutral-200 rounded-2xl text-neutral-400 text-xs font-medium hover:bg-neutral-100 transition-colors">＋ 新增景點</button>
+                    </div>
+                </div>`;
+            });
+
+            container.innerHTML = `<div class="flex flex-col h-full bg-white animate-in">
+                <div class="p-4 border-b flex justify-between items-center"><button onclick="currentView='list'; render()" class="text-neutral-400">關閉</button><div class="flex gap-3 items-center">${editingId?`<button onclick="triggerDelete('plan','${editingId}')" class="text-red-500 text-xs">刪除</button>`:''}<button onclick="submitPlan()" class="px-6 py-2 bg-neutral-900 text-white rounded-full text-xs font-medium">儲存行程</button></div></div>
+                <div id="plan-form-content" class="flex-1 overflow-y-auto p-6 no-scrollbar">
+                    <input id="p-name" class="text-2xl font-semibold w-full outline-none mb-6 bg-transparent" placeholder="行程名稱" value="${tempFormData.name||''}" oninput="tempFormData.name=this.value">
+                    <div class="flex gap-4 mb-2">
+                        <div class="flex-1"><label class="text-[9px] uppercase font-bold text-neutral-400 mb-1 block">起始日期</label><input id="p-date" type="date" class="block w-full outline-none text-sm bg-transparent p-0 m-0" value="${tempFormData.startDate||''}" oninput="tempFormData.startDate=this.value; renderPlanForm(document.getElementById('view-container'))"></div>
+                        <div class="w-20 border-l border-neutral-100 pl-4"><label class="text-[9px] uppercase font-bold text-neutral-400 mb-1 block">天數</label><input id="p-days" type="number" class="w-full outline-none text-sm bg-transparent" value="${tempFormData.days||1}" oninput="tempFormData.days=this.value" onchange="renderPlanForm(document.getElementById('view-container'))"></div>
+                    </div>
+                    <div class="text-[10px] text-neutral-400 mb-8 border-b pb-4 text-left">${getDateRange(tempFormData.startDate, tempFormData.days)}</div>
+                    ${daysHtml}
+                </div></div>`;
+            
+            requestAnimationFrame(() => {
+                const el = document.getElementById('plan-form-content');
+                if (el) el.scrollTop = lastScrollTop;
+            });
+        }
+
         // 資料處理與 CSV 功能
         function exportCSV() {
             const esc = (v) => `"${String(v||'').replace(/"/g, '""')}"`;
-            let rows = ["TYPE,id,name,weight,category,desc,days,startDate,selectedGear,consumables"];
+            let rows = ["TYPE,id,name,weight,category,desc,days,startDate,extra1,extra2"];
             categories.forEach(c => rows.push(`CAT,${c.id},${esc(c.name)},,,,,,`));
             gear.forEach(g => rows.push(`GEAR,${g.id},${esc(g.name)},${g.weight},${g.category},${esc(g.desc)},,,`));
             trips.forEach(t => { 
                 const sel = JSON.stringify(t.selectedGear || {}); 
                 const cons = JSON.stringify(t.consumables || []);
                 rows.push(`TRIP,${t.id},${esc(t.name)},,,,${t.days},${t.startDate},${esc(sel)},${esc(cons)}`); 
+            });
+            plans.forEach(p => {
+                const sched = JSON.stringify(p.dailySchedules || []);
+                rows.push(`PLAN,${p.id},${esc(p.name)},,,,${p.days},${p.startDate},${esc(sched)},`);
             });
             const b = new Blob(["\ufeff" + rows.join("\n")], { type: "text/csv;charset=utf-8;" });
             const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = "ultragear_pro_backup.csv"; a.click();
@@ -270,7 +359,7 @@
             const r = new FileReader(); 
             r.onload = function(e) {
                 const lines = e.target.result.replace(/^\uFEFF/, '').split(/\r?\n/).slice(1);
-                let nG = [], nC = [], nT = [];
+                let nG = [], nC = [], nT = [], nP = [];
                 lines.forEach(l => {
                     if(!l.trim()) return;
                     const cols = parseCSVLine(l);
@@ -278,12 +367,17 @@
                     if(cols[0]==='GEAR') nG.push({ id: cols[1], name: cols[2], weight: parseFloat(cols[3])||0, category: cols[4], desc: cols[5]||'' });
                     if(cols[0]==='TRIP') { 
                         let sel = {}, cons = [];
-                        try { sel = JSON.parse(cols[8]||'{}'); cons = JSON.parse(cols[9]||'[]'); } catch(err) { console.error("JSON Parse Error", err); }
+                        try { sel = JSON.parse(cols[8]||'{}'); cons = JSON.parse(cols[9]||'[]'); } catch(err) { console.error(err); }
                         nT.push({ id: cols[1], name: cols[2], days: parseInt(cols[6])||1, startDate: cols[7], selectedGear: sel, consumables: cons }); 
                     }
+                    if(cols[0]==='PLAN') {
+                        let sched = [];
+                        try { sched = JSON.parse(cols[8]||'[]'); } catch(err) { console.error(err); }
+                        nP.push({ id: cols[1], name: cols[2], days: parseInt(cols[6])||1, startDate: cols[7], dailySchedules: sched });
+                    }
                 });
-                if(mode==='overwrite') { gear = nG; categories = nC.length?nC:categories; trips = nT; }
-                else { gear = [...gear,...nG]; nC.forEach(nc => { if(!categories.find(c=>c.id===nc.id)) categories.push(nc); }); trips = [...trips,...nT]; }
+                if(mode==='overwrite') { gear = nG; categories = nC.length?nC:categories; trips = nT; plans = nP; }
+                else { gear = [...gear,...nG]; nC.forEach(nc => { if(!categories.find(c=>c.id===nc.id)) categories.push(nc); }); trips = [...trips,...nT]; plans = [...plans, ...nP]; }
                 saveData(); pendingImportFile = null;
             };
             r.readAsText(pendingImportFile);
@@ -291,19 +385,80 @@
 
         // 常規邏輯
         function switchTab(tab) { activeTab = tab; currentView = 'list'; render(); }
-        function saveData() { localStorage.setItem('ultra_gear', JSON.stringify(gear)); localStorage.setItem('ultra_cats', JSON.stringify(categories)); localStorage.setItem('ultra_trips', JSON.stringify(trips)); render(); }
+        function saveData() { localStorage.setItem('ultra_gear', JSON.stringify(gear)); localStorage.setItem('ultra_cats', JSON.stringify(categories)); localStorage.setItem('ultra_trips', JSON.stringify(trips)); localStorage.setItem('ultra_plans', JSON.stringify(plans)); render(); }
         function closeModal(id) { document.getElementById(id).classList.add('hide'); }
-        function addNewItem() { lastScrollTop = 0; editingId = null; tempFormData = activeTab === 'gear' ? {} : { selectedGear: {}, consumables:[], startDate: new Date().toISOString().split('T')[0], days: 1 }; currentView = activeTab === 'gear' ? 'gear-form' : 'trip-form'; render(); }
+        
+        function addNewItem() { 
+            lastScrollTop = 0; editingId = null; 
+            if(activeTab === 'gear') {
+                tempFormData = {}; currentView = 'gear-form';
+            } else if(activeTab === 'plans') {
+                tempFormData = { name: '', startDate: new Date().toISOString().split('T')[0], days: 1, dailySchedules: [{ startTime: "08:00", spots: [] }] };
+                currentView = 'plan-form';
+            } else {
+                tempFormData = { selectedGear: {}, consumables:[], startDate: new Date().toISOString().split('T')[0], days: 1 };
+                currentView = 'trip-form';
+            }
+            render(); 
+        }
+
         function editGear(id) { editingId = id; tempFormData = {...gear.find(g => g.id === id)}; currentView = 'gear-form'; render(); }
         function editTrip(id) { lastScrollTop = 0; editingId = id; tempFormData = {...trips.find(t => t.id === id)}; currentView = 'trip-form'; render(); }
+        function editPlan(id) { lastScrollTop = 0; editingId = id; tempFormData = JSON.parse(JSON.stringify(plans.find(p => p.id === id))); currentView = 'plan-form'; render(); }
         
-        function saveCurrentScroll() {
-            const el = document.getElementById('trip-form-content');
+        function saveCurrentScroll(id) {
+            const el = document.getElementById(id);
             if (el) lastScrollTop = el.scrollTop;
         }
 
+        // 行程專屬功能
+        function addSpot(dayIdx) {
+            saveCurrentScroll('plan-form-content');
+            if(!tempFormData.dailySchedules[dayIdx].spots) tempFormData.dailySchedules[dayIdx].spots = [];
+            tempFormData.dailySchedules[dayIdx].spots.push({ name: '', duration: 60, notes: '' });
+            renderPlanForm(document.getElementById('view-container'));
+        }
+        function removeSpot(dayIdx, spotIdx) {
+            saveCurrentScroll('plan-form-content');
+            tempFormData.dailySchedules[dayIdx].spots.splice(spotIdx, 1);
+            renderPlanForm(document.getElementById('view-container'));
+        }
+        function moveSpot(dayIdx, spotIdx, dir) {
+            saveCurrentScroll('plan-form-content');
+            const spots = tempFormData.dailySchedules[dayIdx].spots;
+            const newIdx = spotIdx + dir;
+            if(newIdx < 0 || newIdx >= spots.length) return;
+            [spots[spotIdx], spots[newIdx]] = [spots[newIdx], spots[spotIdx]];
+            renderPlanForm(document.getElementById('view-container'));
+        }
+        function submitPlan() {
+            const planId = editingId || Date.now().toString();
+            const planName = (tempFormData.name||'未命名行程').trim();
+            const plan = { ...tempFormData, id: planId, name: planName };
+            
+            if (editingId) plans = plans.map(p => p.id === editingId ? plan : p);
+            else plans.unshift(plan);
+
+            // 自動同步建立/更新行李清單
+            const existingTripIdx = trips.findIndex(t => t.id === planId);
+            const tripData = {
+                id: planId,
+                name: planName,
+                startDate: plan.startDate,
+                days: plan.days,
+                selectedGear: existingTripIdx > -1 ? trips[existingTripIdx].selectedGear : {},
+                consumables: existingTripIdx > -1 ? trips[existingTripIdx].consumables : []
+            };
+
+            if(existingTripIdx > -1) trips[existingTripIdx] = tripData;
+            else trips.unshift(tripData);
+
+            currentView = 'list'; saveData();
+        }
+
+        // 行李清單功能
         function addConsumable() { 
-            saveCurrentScroll();
+            saveCurrentScroll('trip-form-content');
             const n = document.getElementById('new-cons-name'); 
             const w = document.getElementById('new-cons-weight'); 
             if(!n.value || !w.value) return; 
@@ -316,45 +471,48 @@
             document.getElementById('new-cons-weight').focus(); 
         }
         function removeConsumable(idx) { 
-            saveCurrentScroll();
+            saveCurrentScroll('trip-form-content');
             tempFormData.consumables.splice(idx, 1); 
             renderTripForm(document.getElementById('view-container')); 
         }
-        function updateCatName(id, name) { categories = categories.map(c=>c.id===id?{...c, name:name.trim()}:c); saveData(); }
-        
-        function addCat() { const n = document.getElementById('new-cat-name').value.trim(); if (!n) return; categories.push({id:'c'+Date.now(), name:n}); saveData(); }
-        function submitGear() { const n = document.getElementById('f-name').value.trim(); if (!n) return; const item = { id: editingId || Date.now().toString(), name: n, weight: parseFloat(document.getElementById('f-weight').value)||0, category: document.getElementById('f-cat').value, desc: document.getElementById('f-desc').value.trim() }; if (editingId) gear = gear.map(g => g.id === editingId ? item : g); else gear.push(item); currentView = 'list'; saveData(); }
-        function submitTrip() { const trip = { ...tempFormData, id: editingId || Date.now().toString(), name: (tempFormData.name||'未命名').trim() }; if (editingId) trips = trips.map(t => t.id === editingId ? trip : t); else trips.unshift(trip); currentView = 'list'; saveData(); }
-        
         function toggleGearStatus(itemId, status) { 
-            saveCurrentScroll();
+            saveCurrentScroll('trip-form-content');
             if (!tempFormData.selectedGear) tempFormData.selectedGear = {}; 
             if (tempFormData.selectedGear[itemId] === status) delete tempFormData.selectedGear[itemId]; 
             else tempFormData.selectedGear[itemId] = status; 
             renderTripForm(document.getElementById('view-container')); 
         }
+
+        // 其他基礎邏輯
+        function updateCatName(id, name) { categories = categories.map(c=>c.id===id?{...c, name:name.trim()}:c); saveData(); }
+        function addCat() { const n = document.getElementById('new-cat-name').value.trim(); if (!n) return; categories.push({id:'c'+Date.now(), name:n}); saveData(); }
+        function submitGear() { const n = document.getElementById('f-name').value.trim(); if (!n) return; const item = { id: editingId || Date.now().toString(), name: n, weight: parseFloat(document.getElementById('f-weight').value)||0, category: document.getElementById('f-cat').value, desc: document.getElementById('f-desc').value.trim() }; if (editingId) gear = gear.map(g => g.id === editingId ? item : g); else gear.push(item); currentView = 'list'; saveData(); }
+        function submitTrip() { const trip = { ...tempFormData, id: editingId || Date.now().toString(), name: (tempFormData.name||'未命名清單').trim() }; if (editingId) trips = trips.map(t => t.id === editingId ? trip : t); else trips.unshift(trip); currentView = 'list'; saveData(); }
         
         function triggerDelete(type, id) { 
             const btn = document.getElementById('confirm-delete-btn'); 
             const msg = document.getElementById('delete-modal-msg');
             document.getElementById('modal-delete').classList.remove('hide'); 
             
-            // 根據類型設定提示文字
             if (type === 'category') {
                 const count = gear.filter(g => g.category === id).length;
-                msg.innerText = `目前有 ${count} 筆裝備使用此分類，若刪除分類裝備會變為無分類。`;
+                msg.innerText = `目前有 ${count} 筆裝備使用此分類，刪除後將變為無分類。`;
             } else {
                 msg.innerText = "此動作無法復原。";
             }
 
             btn.onclick = function() { 
-                if(type === 'gear') { gear = gear.filter(g => g.id !== id); currentView = 'list'; }
-                if(type === 'trip') { trips = trips.filter(t => t.id !== id); currentView = 'list'; }
+                if(type === 'gear') gear = gear.filter(g => g.id !== id);
+                if(type === 'trip') trips = trips.filter(t => t.id !== id);
+                if(type === 'plan') {
+                    plans = plans.filter(p => p.id !== id);
+                    trips = trips.filter(t => t.id !== id); // 同步刪除連動的行李清單
+                }
                 if(type === 'category') {
                     categories = categories.filter(c => c.id !== id);
                     gear = gear.map(g => g.category === id ? {...g, category: ''} : g);
-                    // 保持在分類管理畫面，不切換 View
                 }
+                currentView = 'list';
                 closeModal('modal-delete'); 
                 saveData(); 
             }; 
