@@ -155,6 +155,7 @@
             else if (currentView === 'cat-manager') renderCatManager(container);
             else if (currentView === 'trip-form') renderTripForm(container);
             else if (currentView === 'plan-form') renderPlanForm(container);
+            else if (currentView === 'plan-view') renderPlanView(container);
         }
 
         function renderListView(container) {
@@ -307,6 +308,78 @@
             });
         }
 
+        function renderPlanView(container) {
+            const plan = tempFormData;
+            const numDays = parseInt(plan.days) || 1;
+
+            let daysHtml = "";
+
+            plan.dailySchedules.slice(0, numDays).forEach((day, dayIdx) => {
+                let currentTime = day.startTime;
+
+                daysHtml += `
+                <div class="mb-10">
+                    <h3 class="text-xs font-bold tracking-widest text-neutral-400 mb-4">
+                        DAY ${dayIdx + 1}
+                    </h3>
+                    <div class="space-y-2">
+                        ${(day.spots || []).map((spot, spotIdx) => {
+                            const start = currentTime;
+                            const end = addMinutes(start, parseInt(spot.duration) || 0);
+                            currentTime = end;
+
+                            return `
+                            <div class="border-b border-neutral-100 pb-3">
+                                <div 
+                                    onclick="toggleNote(${dayIdx}, ${spotIdx})"
+                                    class="flex justify-between items-center py-2 cursor-pointer active:scale-[0.98] transition-all"
+                                >
+                                    <div class="text-sm font-mono text-neutral-500">
+                                        ${start}-${end}
+                                    </div>
+                                    <div class="text-sm font-medium text-neutral-900">
+                                        ${spot.name || '未命名景點'}
+                                    </div>
+                                </div>
+
+                                <div id="note-${dayIdx}-${spotIdx}" 
+                                     class="text-xs text-neutral-400 mt-1 hidden pl-1">
+                                    ${spot.notes || '無備註'}
+                                </div>
+                            </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+                `;
+            });
+
+            container.innerHTML = `
+            <div class="flex flex-col h-full bg-white animate-in">
+                <div class="p-4 border-b flex justify-between items-center">
+                    <button onclick="currentView='list'; render()" 
+                        class="text-neutral-400">返回</button>
+
+                    <div class="flex gap-4 items-center">
+                        <button onclick="currentView='plan-form'; render()" 
+                            class="text-xs text-neutral-500">編輯</button>
+                        <button onclick="triggerDelete('plan','${editingId}')" 
+                            class="text-xs text-red-500">刪除</button>
+                    </div>
+                </div>
+
+                <div class="flex-1 overflow-y-auto p-6 no-scrollbar">
+                    <h2 class="text-2xl font-semibold mb-1">${plan.name}</h2>
+                    <div class="text-[10px] text-neutral-400 mb-8">
+                        ${getDateRange(plan.startDate, plan.days)}
+                    </div>
+
+                    ${daysHtml}
+                </div>
+            </div>
+            `;
+        }
+
         // 資料處理與 CSV 功能
         function exportCSV() {
             const esc = (v) => `"${String(v||'').replace(/"/g, '""')}"`;
@@ -404,11 +477,24 @@
 
         function editGear(id) { editingId = id; tempFormData = {...gear.find(g => g.id === id)}; currentView = 'gear-form'; render(); }
         function editTrip(id) { lastScrollTop = 0; editingId = id; tempFormData = {...trips.find(t => t.id === id)}; currentView = 'trip-form'; render(); }
-        function editPlan(id) { lastScrollTop = 0; editingId = id; tempFormData = JSON.parse(JSON.stringify(plans.find(p => p.id === id))); currentView = 'plan-form'; render(); }
+        
+        function editPlan(id) {
+            lastScrollTop = 0;
+            editingId = id;
+            tempFormData = JSON.parse(JSON.stringify(plans.find(p => p.id === id)));
+            currentView = 'plan-view';   // 改成純讀模式
+            render();
+        }
         
         function saveCurrentScroll(id) {
             const el = document.getElementById(id);
             if (el) lastScrollTop = el.scrollTop;
+        }
+
+        function toggleNote(dayIdx, spotIdx) {
+            const el = document.getElementById(`note-${dayIdx}-${spotIdx}`);
+            if (!el) return;
+            el.classList.toggle('hidden');
         }
 
         // 行程專屬功能
