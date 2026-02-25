@@ -12,6 +12,8 @@
     <meta name="apple-mobile-web-app-title" content="UltraGear">
 
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
         body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; overflow: hidden; user-select: none; }
@@ -27,6 +29,16 @@
         .selected-for-move { background-color: #111111 !important; color: white !important; transform: scale(1.02); z-index: 10; }
         
         input[type="date"], input[type="time"] { display: block; text-align: left; -webkit-appearance: none; width: 100%; }
+
+        /* 專門給圖片匯出使用的樣式 */
+        #image-render-area {
+            position: absolute;
+            left: -9999px;
+            top: 0;
+            width: 400px;
+            background: white;
+            color: #171717;
+        }
     </style>
 </head>
 <body class="bg-white text-neutral-800">
@@ -49,6 +61,8 @@
             </button>
         </nav>
     </div>
+
+    <div id="image-render-area"></div>
 
     <input type="file" id="csv-input" accept=".csv" class="hide" onchange="prepareImport(event)">
     
@@ -159,7 +173,7 @@
         }
 
         function renderListView(container) {
-            let html = `<div class="h-full overflow-y-auto p-6 pb-32 animate-in no-scrollbar">`;
+            let html = `<div id="main-list-content" class="h-full overflow-y-auto p-6 pb-32 animate-in no-scrollbar">`;
             if (activeTab === 'gear') {
                 html += `<div class="flex justify-between items-center mb-6 relative"><h2 class="text-2xl font-semibold">裝備庫</h2><button onclick="document.getElementById('gear-menu').classList.toggle('hide')" class="text-neutral-400 p-2"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button><div id="gear-menu" class="absolute right-0 top-10 w-40 bg-white border rounded-2xl shadow-xl text-sm hide z-50 overflow-hidden"><button onclick="currentView='cat-manager';render()" class="block w-full text-left px-4 py-4 hover:bg-neutral-50">管理分類</button><button onclick="exportCSV()" class="block w-full text-left px-4 py-4 hover:bg-neutral-50 border-t">匯出 CSV</button><button onclick="document.getElementById('csv-input').click()" class="block w-full text-left px-4 py-4 hover:bg-neutral-50 border-t">匯入 CSV</button></div></div>`;
                 [...categories, {id:'', name:'未分類'}].forEach(c => {
@@ -189,7 +203,11 @@
         }
 
         function renderGearForm(container) {
-            container.innerHTML = `<div class="p-6 pt-12 animate-in"><button onclick="currentView='list'; render()" class="mb-8 text-neutral-400 flex items-center gap-1"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>返回</button><div class="space-y-6"><div class="space-y-1"><label class="text-[10px] uppercase font-bold text-neutral-400 ml-1">裝備名稱</label><input id="f-name" class="w-full bg-neutral-50 p-4 rounded-2xl outline-none" value="${tempFormData.name||''}"></div><div class="grid grid-cols-2 gap-4"><div><label class="text-[10px] uppercase font-bold text-neutral-400 ml-1">重量 (g)</label><input id="f-weight" type="number" class="w-full bg-neutral-50 p-4 rounded-2xl outline-none" value="${tempFormData.weight||''}"></div><div><label class="text-[10px] uppercase font-bold text-neutral-400 ml-1">分類</label><select id="f-cat" class="w-full bg-neutral-50 p-4 rounded-2xl outline-none">${categories.map(c=>`<option value="${c.id}" ${tempFormData.category===c.id?'selected':''}>${c.name}</option>`).join('')}<option value="" ${!tempFormData.category?'selected':''}>未分類</option></select></div></div><div class="space-y-1"><label class="text-[10px] uppercase font-bold text-neutral-400 ml-1">描述</label><input id="f-desc" class="w-full bg-neutral-50 p-4 rounded-2xl outline-none" value="${tempFormData.desc||''}"></div><button onclick="submitGear()" class="w-full py-4 bg-neutral-900 text-white rounded-2xl font-medium shadow-lg">儲存裝備</button>${editingId?`<button onclick="triggerDelete('gear','${editingId}')" class="w-full py-4 text-red-500 font-medium">刪除</button>`:''}</div></div>`;
+            container.innerHTML = `<div id="gear-form-content" class="p-6 pt-12 animate-in overflow-y-auto h-full no-scrollbar"><button onclick="currentView='list'; render()" class="mb-8 text-neutral-400 flex items-center gap-1"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>返回</button><div class="space-y-6"><div class="space-y-1"><label class="text-[10px] uppercase font-bold text-neutral-400 ml-1">裝備名稱</label><input id="f-name" class="w-full bg-neutral-50 p-4 rounded-2xl outline-none" value="${tempFormData.name||''}"></div><div class="grid grid-cols-2 gap-4"><div><label class="text-[10px] uppercase font-bold text-neutral-400 ml-1">重量 (g)</label><input id="f-weight" type="number" class="w-full bg-neutral-50 p-4 rounded-2xl outline-none" value="${tempFormData.weight||''}"></div><div><label class="text-[10px] uppercase font-bold text-neutral-400 ml-1">分類</label><select id="f-cat" class="w-full bg-neutral-50 p-4 rounded-2xl outline-none">${categories.map(c=>`<option value="${c.id}" ${tempFormData.category===c.id?'selected':''}>${c.name}</option>`).join('')}<option value="" ${!tempFormData.category?'selected':''}>未分類</option></select></div></div><div class="space-y-1"><label class="text-[10px] uppercase font-bold text-neutral-400 ml-1">描述</label><input id="f-desc" class="w-full bg-neutral-50 p-4 rounded-2xl outline-none" value="${tempFormData.desc||''}"></div><button onclick="submitGear()" class="w-full py-4 bg-neutral-900 text-white rounded-2xl font-medium shadow-lg">儲存裝備</button>${editingId?`<button onclick="triggerDelete('gear','${editingId}')" class="w-full py-4 text-red-500 font-medium">刪除</button>`:''}</div><div class="h-20"></div></div>`;
+            requestAnimationFrame(() => {
+                const el = document.getElementById('gear-form-content');
+                if (el) el.scrollTop = lastScrollTop;
+            });
         }
 
         function renderCatManager(container) {
@@ -208,7 +226,7 @@
                     <input id="t-name" class="text-2xl font-semibold w-full outline-none mb-6 bg-transparent" placeholder="行李清單名稱" value="${tempFormData.name||''}" oninput="tempFormData.name=this.value">
                     <div class="flex gap-4 mb-2">
                         <div class="flex-1"><label class="text-[9px] uppercase font-bold text-neutral-400 mb-1 block">日期</label><input id="t-date" type="date" class="block w-full outline-none text-sm bg-transparent p-0 m-0" value="${tempFormData.startDate||''}" oninput="tempFormData.startDate=this.value"></div>
-                        <div class="w-20 border-l border-neutral-100 pl-4"><label class="text-[9px] uppercase font-bold text-neutral-400 mb-1 block">天數</label><input id="t-days" type="number" class="w-full outline-none text-sm bg-transparent" value="${tempFormData.days||1}" oninput="tempFormData.days=this.value; renderTripForm(document.getElementById('view-container'))"></div>
+                        <div class="w-20 border-l border-neutral-100 pl-4"><label class="text-[9px] uppercase font-bold text-neutral-400 mb-1 block">天數</label><input id="t-days" type="number" class="w-full outline-none text-sm bg-transparent" value="${tempFormData.days||1}" oninput="saveCurrentScroll('trip-form-content'); tempFormData.days=this.value; renderTripForm(document.getElementById('view-container'))"></div>
                     </div>
                     <div class="text-[10px] text-neutral-400 mb-8 border-b pb-4 text-left">${getDateRange(tempFormData.startDate, tempFormData.days)}</div>
                     ${stats.total > 0 ? `<div class="mb-10 bg-neutral-50/50 p-6 rounded-3xl"><div class="flex items-center justify-around gap-4 mb-6"><div class="h-32 w-32 relative flex-shrink-0"><svg viewBox="0 0 36 36" class="w-full h-full transform -rotate-90">${generatePieSVG(stats.pieData)}</svg><div class="absolute inset-0 flex flex-col items-center justify-center"><div class="text-[8px] uppercase text-neutral-300 font-bold">Total</div><div class="text-base font-bold">${(stats.total/1000).toFixed(2)}<span class="text-[10px] ml-0.5">kg</span></div></div></div><div class="flex flex-col gap-4"><div class="border-l-2 border-neutral-800 pl-3"><div class="text-[9px] uppercase font-bold text-neutral-400 mb-0.5">基礎重量</div><div class="text-sm font-bold text-neutral-800">${(gearWeight/1000).toFixed(2)}<span class="text-[10px] ml-0.5 font-normal">kg</span></div></div><div class="border-l-2 border-neutral-300 pl-3"><div class="text-[9px] uppercase font-bold text-neutral-400 mb-0.5">消耗品</div><div class="text-sm font-bold text-neutral-800">${(consWeight/1000).toFixed(2)}<span class="text-[10px] ml-0.5 font-normal">kg</span></div></div></div></div><div class="w-full space-y-1.5 pt-4 border-t border-neutral-100">${stats.pieData.map((d,i)=>`<div class="flex justify-between text-[10px] items-center"><div class="flex items-center gap-2"><div class="w-1.5 h-1.5 rounded-full" style="background:${d.name==='消耗品'?'#111111':COLORS[i%COLORS.length]}"></div><span class="text-neutral-500">${d.name}</span></div><div class="font-mono text-neutral-400">${(d.percent*100).toFixed(1)}%</div></div>`).join('')}</div></div>` : ''}
@@ -233,7 +251,7 @@
                         if (!items.length) return '';
                         return `<div class="mb-6"><div class="text-[10px] uppercase font-bold text-neutral-300 mb-2 border-b border-neutral-100 pb-1">${c.name}</div>${items.map(i => {
                             const st = (tempFormData.selectedGear||{})[i.id];
-                            return `<div class="flex items-center justify-between py-3"><div class="${st==='leave'?'opacity-20':''}"><div class="text-sm font-medium">${i.name}</div><div class="text-[10px] text-neutral-400">${i.weight}g</div></div><div class="flex gap-2"><button onclick="toggleGearStatus('${i.id}','leave')" class="w-8 h-8 rounded-full flex items-center justify-center ${st==='leave'?'bg-neutral-200 text-white':'bg-neutral-50 text-neutral-300'}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button><button onclick="toggleGearStatus('${i.id}','take')" class="w-8 h-8 rounded-full flex items-center justify-center ${st==='take'?'bg-neutral-900 text-white':'bg-neutral-50 text-neutral-300'}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></button></div></div>` }).join('')}</div>` }).join('')}</div>
+                            return `<div class="flex items-center justify-between py-3"><div class="${st==='leave'?'opacity-20':''}"><div class="text-sm font-medium">${i.name}</div><div class="text-[10px] text-neutral-400">${i.weight}g</div></div><div class="flex gap-2"><button onclick="toggleGearStatus('${i.id}','leave')" class="w-8 h-8 rounded-full flex items-center justify-center ${st==='leave'?'bg-neutral-500 text-white':'bg-neutral-50 text-neutral-300'}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button><button onclick="toggleGearStatus('${i.id}','take')" class="w-8 h-8 rounded-full flex items-center justify-center ${st==='take'?'bg-emerald-600 text-white':'bg-neutral-50 text-neutral-300'}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg></button></div></div>` }).join('')}</div>` }).join('')}</div>
                 </div></div>`;
             
             requestAnimationFrame(() => {
@@ -258,7 +276,7 @@
                         <h4 class="font-bold text-sm">DAY ${dayIdx+1}</h4>
                         <div class="flex items-center gap-2">
                             <span class="text-[9px] uppercase font-bold text-neutral-400">起始</span>
-                            <input type="time" class="bg-white border rounded-lg px-2 py-1 text-xs outline-none" value="${day.startTime}" oninput="tempFormData.dailySchedules[${dayIdx}].startTime=this.value; updateDayTimes(${dayIdx});">
+                            <input type="time" class="bg-white border rounded-lg px-2 py-1 text-xs outline-none" value="${day.startTime}" oninput="tempFormData.dailySchedules[${dayIdx}].startTime=this.value">
                         </div>
                     </div>
                     <div class="space-y-3">
@@ -279,7 +297,7 @@
                                 <div class="flex gap-2 items-center mt-3">
                                     <input class="flex-1 bg-neutral-50 px-3 py-2 rounded-xl text-xs outline-none" placeholder="備註..." value="${spot.notes||''}" oninput="tempFormData.dailySchedules[${dayIdx}].spots[${spotIdx}].notes=this.value">
                                     <div class="w-24 bg-neutral-100 px-3 py-2 rounded-xl flex items-center gap-1">
-                                        <input type="number" class="w-full bg-transparent text-xs outline-none text-right font-bold" placeholder="0" value="${spot.duration||''}" oninput="tempFormData.dailySchedules[${dayIdx}].spots[${spotIdx}].duration=this.value; updateDayTimes(${dayIdx});">
+                                        <input type="number" class="w-full bg-transparent text-xs outline-none text-right font-bold" placeholder="0" value="${spot.duration||''}" oninput="tempFormData.dailySchedules[${dayIdx}].spots[${spotIdx}].duration=this.value">
                                         <span class="text-[9px] text-neutral-400 font-bold">MIN</span>
                                     </div>
                                 </div>
@@ -295,11 +313,12 @@
                 <div id="plan-form-content" class="flex-1 overflow-y-auto p-6 no-scrollbar">
                     <input id="p-name" class="text-2xl font-semibold w-full outline-none mb-6 bg-transparent" placeholder="行程名稱" value="${tempFormData.name||''}" oninput="tempFormData.name=this.value">
                     <div class="flex gap-4 mb-2">
-                        <div class="flex-1"><label class="text-[9px] uppercase font-bold text-neutral-400 mb-1 block">起始日期</label><input id="p-date" type="date" class="block w-full outline-none text-sm bg-transparent p-0 m-0" value="${tempFormData.startDate||''}" oninput="tempFormData.startDate=this.value; renderPlanForm(document.getElementById('view-container'))"></div>
-                        <div class="w-20 border-l border-neutral-100 pl-4"><label class="text-[9px] uppercase font-bold text-neutral-400 mb-1 block">天數</label><input id="p-days" type="number" class="w-full outline-none text-sm bg-transparent" value="${tempFormData.days||1}" oninput="tempFormData.days=this.value" onchange="renderPlanForm(document.getElementById('view-container'))"></div>
+                        <div class="flex-1"><label class="text-[9px] uppercase font-bold text-neutral-400 mb-1 block">起始日期</label><input id="p-date" type="date" class="block w-full outline-none text-sm bg-transparent p-0 m-0" value="${tempFormData.startDate||''}" oninput="tempFormData.startDate=this.value"></div>
+                        <div class="w-20 border-l border-neutral-100 pl-4"><label class="text-[9px] uppercase font-bold text-neutral-400 mb-1 block">天數</label><input id="p-days" type="number" class="w-full outline-none text-sm bg-transparent" value="${tempFormData.days||1}" oninput="tempFormData.days=this.value" onchange="saveCurrentScroll('plan-form-content'); renderPlanForm(document.getElementById('view-container'))"></div>
                     </div>
                     <div class="text-[10px] text-neutral-400 mb-8 border-b pb-4 text-left">${getDateRange(tempFormData.startDate, tempFormData.days)}</div>
                     ${daysHtml}
+                    <div class="h-10"></div>
                 </div></div>`;
             
             requestAnimationFrame(() => {
@@ -361,12 +380,12 @@
                         class="text-neutral-400">返回</button>
 
                     <div class="flex gap-4 items-center">
-                        <button onclick="exportPlanPDF()"
-                            class="text-xs text-neutral-500">
-                            匯出PDF
-                        </button>
+                        <button onclick="exportPlanImage()" 
+                            class="text-xs text-neutral-500">分享圖片</button>
+
                         <button onclick="currentView='plan-form'; render()" 
                             class="text-xs text-neutral-500">編輯</button>
+                            
                         <button onclick="triggerDelete('plan','${editingId}')" 
                             class="text-xs text-red-500">刪除</button>
                     </div>
@@ -384,7 +403,95 @@
             `;
         }
 
-        // 資料處理與 CSV 功能
+        // --- 圖片匯出核心功能 ---
+
+        function buildPrettyPlanHTML(plan) {
+            const numDays = parseInt(plan.days) || 1;
+            let daysHtml = "";
+
+            plan.dailySchedules.slice(0, numDays).forEach((day, dayIdx) => {
+                let currentTime = day.startTime;
+                let spotsHtml = (day.spots || []).map(spot => {
+                    const start = currentTime;
+                    const end = addMinutes(start, parseInt(spot.duration) || 0);
+                    currentTime = end;
+                    return `
+                        <div style="border-bottom: 1px solid #f5f5f5; padding: 12px 0;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span style="font-family: monospace; font-size: 13px; color: #888;">${start}-${end}</span>
+                                <span style="font-size: 14px; font-weight: 600;">${spot.name || '未命名景點'}</span>
+                            </div>
+                            ${spot.notes ? `<div style="font-size: 11px; color: #aaa; margin-top: 4px;">${spot.notes}</div>` : ''}
+                        </div>
+                    `;
+                }).join('');
+
+                daysHtml += `
+                    <div style="margin-bottom: 30px;">
+                        <div style="font-size: 11px; font-weight: 800; letter-spacing: 2px; color: #d4d4d4; margin-bottom: 10px; border-bottom: 2px solid #f0f0f0; padding-bottom: 4px;">DAY ${dayIdx+1}</div>
+                        ${spotsHtml || '<div style="font-size: 12px; color: #ccc;">無安排景點</div>'}
+                    </div>
+                `;
+            });
+
+            return `
+                <div style="padding: 40px; background: white; font-family: sans-serif;">
+                    <div style="margin-bottom: 30px;">
+                        <h1 style="font-size: 28px; font-weight: 700; margin: 0 0 8px 0; letter-spacing: -1px;">${plan.name}</h1>
+                        <p style="font-size: 12px; color: #888; margin: 0;">${getDateRange(plan.startDate, plan.days)}</p>
+                    </div>
+                    ${daysHtml}
+                    <div style="margin-top: 40px; text-align: center; border-top: 1px solid #f0f0f0; padding-top: 20px;">
+                        <span style="font-size: 10px; font-weight: 800; letter-spacing: 3px; color: #eee; text-transform: uppercase;">Ultra Gear Pro - Plan Export</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function exportPlanImage() {
+            const plan = tempFormData;
+            const container = document.getElementById('image-render-area');
+            
+            // 填寫渲染區內容
+            container.innerHTML = buildPrettyPlanHTML(plan);
+
+            // 使用 html2canvas 轉換
+            const canvas = await html2canvas(container, {
+                scale: 3, // 高解析度
+                useCORS: true,
+                backgroundColor: "#ffffff"
+            });
+
+            const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+            const file = new File([blob], `${plan.name}.png`, { type: "image/png" });
+
+            // 優先嘗試 Web Share API (手機原生分享)
+            if (navigator.share && navigator.canShare({ files: [file] })) {
+                try {
+                    await navigator.share({
+                        files: [file],
+                        title: plan.name,
+                        text: `這是我的行程：${plan.name}`
+                    });
+                } catch (err) {
+                    console.log("分享取消或失敗", err);
+                }
+            } else {
+                // 降級方案：直接下載
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${plan.name}.png`;
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+            
+            // 清空渲染區
+            container.innerHTML = "";
+        }
+
+        // --- 其餘原本功能保持不變 ---
+
         function exportCSV() {
             const esc = (v) => `"${String(v||'').replace(/"/g, '""')}"`;
             let rows = ["TYPE,id,name,weight,category,desc,days,startDate,extra1,extra2"];
@@ -460,7 +567,6 @@
             r.readAsText(pendingImportFile);
         }
 
-        // 常規邏輯
         function switchTab(tab) { activeTab = tab; currentView = 'list'; render(); }
         function saveData() { localStorage.setItem('ultra_gear', JSON.stringify(gear)); localStorage.setItem('ultra_cats', JSON.stringify(categories)); localStorage.setItem('ultra_trips', JSON.stringify(trips)); localStorage.setItem('ultra_plans', JSON.stringify(plans)); render(); }
         function closeModal(id) { document.getElementById(id).classList.add('hide'); }
@@ -479,14 +585,17 @@
             render(); 
         }
 
-        function editGear(id) { editingId = id; tempFormData = {...gear.find(g => g.id === id)}; currentView = 'gear-form'; render(); }
+        function editGear(id) { 
+            saveCurrentScroll('main-list-content');
+            editingId = id; tempFormData = {...gear.find(g => g.id === id)}; currentView = 'gear-form'; render(); 
+        }
         function editTrip(id) { lastScrollTop = 0; editingId = id; tempFormData = {...trips.find(t => t.id === id)}; currentView = 'trip-form'; render(); }
         
         function editPlan(id) {
             lastScrollTop = 0;
             editingId = id;
             tempFormData = JSON.parse(JSON.stringify(plans.find(p => p.id === id)));
-            currentView = 'plan-view';   // 改成純讀模式
+            currentView = 'plan-view';
             render();
         }
         
@@ -501,7 +610,6 @@
             el.classList.toggle('hidden');
         }
 
-        // 行程專屬功能
         function addSpot(dayIdx) {
             saveCurrentScroll('plan-form-content');
             if(!tempFormData.dailySchedules[dayIdx].spots) tempFormData.dailySchedules[dayIdx].spots = [];
@@ -529,7 +637,6 @@
             if (editingId) plans = plans.map(p => p.id === editingId ? plan : p);
             else plans.unshift(plan);
 
-            // 自動同步建立/更新行李清單
             const existingTripIdx = trips.findIndex(t => t.id === planId);
             const tripData = {
                 id: planId,
@@ -546,7 +653,6 @@
             currentView = 'list'; saveData();
         }
 
-        // 行李清單功能
         function addConsumable() { 
             saveCurrentScroll('trip-form-content');
             const n = document.getElementById('new-cons-name'); 
@@ -573,13 +679,44 @@
             renderTripForm(document.getElementById('view-container')); 
         }
 
-        // 其他基礎邏輯
         function updateCatName(id, name) { categories = categories.map(c=>c.id===id?{...c, name:name.trim()}:c); saveData(); }
         function addCat() { const n = document.getElementById('new-cat-name').value.trim(); if (!n) return; categories.push({id:'c'+Date.now(), name:n}); saveData(); }
-        function submitGear() { const n = document.getElementById('f-name').value.trim(); if (!n) return; const item = { id: editingId || Date.now().toString(), name: n, weight: parseFloat(document.getElementById('f-weight').value)||0, category: document.getElementById('f-cat').value, desc: document.getElementById('f-desc').value.trim() }; if (editingId) gear = gear.map(g => g.id === editingId ? item : g); else gear.push(item); currentView = 'list'; saveData(); }
+        
+        function submitGear() {
+            const id = editingId || Date.now().toString();
+            const newGear = {
+                id,
+                name: document.getElementById('f-name').value.trim(),
+                weight: parseFloat(document.getElementById('f-weight').value) || 0,
+                category: document.getElementById('f-cat').value,
+                desc: document.getElementById('f-desc').value.trim()
+            };
+
+            if (editingId) {
+                gear = gear.map(g => g.id === editingId ? newGear : g);
+            } else {
+                gear.unshift(newGear);
+            }
+
+            // 只存資料，不呼叫會全域重繪的 saveData
+            localStorage.setItem('ultra_gear', JSON.stringify(gear));
+
+            currentView = 'list';
+            render();
+
+            // 回到原本捲動位置
+            requestAnimationFrame(() => {
+                const el = document.getElementById('main-list-content');
+                if (el) el.scrollTop = lastScrollTop;
+            });
+        }
+        
         function submitTrip() { const trip = { ...tempFormData, id: editingId || Date.now().toString(), name: (tempFormData.name||'未命名清單').trim() }; if (editingId) trips = trips.map(t => t.id === editingId ? trip : t); else trips.unshift(trip); currentView = 'list'; saveData(); }
         
         function triggerDelete(type, id) { 
+            // 刪除 gear 前面加保存
+            if (type === 'gear') saveCurrentScroll('main-list-content');
+
             const btn = document.getElementById('confirm-delete-btn'); 
             const msg = document.getElementById('delete-modal-msg');
             document.getElementById('modal-delete').classList.remove('hide'); 
@@ -596,7 +733,7 @@
                 if(type === 'trip') trips = trips.filter(t => t.id !== id);
                 if(type === 'plan') {
                     plans = plans.filter(p => p.id !== id);
-                    trips = trips.filter(t => t.id !== id); // 同步刪除連動的行李清單
+                    trips = trips.filter(t => t.id !== id);
                 }
                 if(type === 'category') {
                     categories = categories.filter(c => c.id !== id);
@@ -605,59 +742,16 @@
                 currentView = 'list';
                 closeModal('modal-delete'); 
                 saveData(); 
+
+                // 刪除後同樣嘗試恢復位置
+                requestAnimationFrame(() => {
+                    const el = document.getElementById('main-list-content');
+                    if (el) el.scrollTop = lastScrollTop;
+                });
             }; 
         }
 
         function handleCatReorder(id) { if (!selectedCatId) { selectedCatId = id; } else if (selectedCatId === id) { selectedCatId = null; } else { const idx1 = categories.findIndex(c => c.id === selectedCatId); const idx2 = categories.findIndex(c => c.id === id); [categories[idx1], categories[idx2]] = [categories[idx2], categories[idx1]]; selectedCatId = null; saveData(); } render(); }
-
-        function updateDayTimes(dayIdx){
-            const container = document.querySelectorAll('#plan-form-content .mb-10')[dayIdx];
-            if(!container) return;
-
-            let day = tempFormData.dailySchedules[dayIdx];
-            let currentTime = day.startTime;
-
-            const cards = container.querySelectorAll('.group');
-
-            cards.forEach((card, i)=>{
-                const spot = day.spots[i];
-                const start = currentTime;
-                const end = addMinutes(start, parseInt(spot.duration)||0);
-                currentTime = end;
-
-                const timeLabel = card.querySelector('.font-mono');
-                if(timeLabel){
-                    timeLabel.innerText = `${start} - ${end}`;
-                }
-            });
-        }
-
-        function exportPlanPDF(){
-            const plan = tempFormData;
-            let content = `${plan.name}\n`;
-            content += `${getDateRange(plan.startDate, plan.days)}\n\n`;
-
-            plan.dailySchedules.forEach((day, d)=>{
-                content += `DAY ${d+1}\n`;
-                let currentTime = day.startTime;
-
-                (day.spots||[]).forEach(spot=>{
-                    const start = currentTime;
-                    const end = addMinutes(start, parseInt(spot.duration)||0);
-                    currentTime = end;
-                    content += `${start}-${end} ${spot.name||''}\n`;
-                });
-
-                content += `\n`;
-            });
-
-            const blob = new Blob([content], {type:'application/pdf'});
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${plan.name}.pdf`;
-            a.click();
-        }
 
         render();
     </script>
