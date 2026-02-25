@@ -258,7 +258,7 @@
                         <h4 class="font-bold text-sm">DAY ${dayIdx+1}</h4>
                         <div class="flex items-center gap-2">
                             <span class="text-[9px] uppercase font-bold text-neutral-400">起始</span>
-                            <input type="time" class="bg-white border rounded-lg px-2 py-1 text-xs outline-none" value="${day.startTime}" onchange="tempFormData.dailySchedules[${dayIdx}].startTime=this.value; renderPlanForm(document.getElementById('view-container'))">
+                            <input type="time" class="bg-white border rounded-lg px-2 py-1 text-xs outline-none" value="${day.startTime}" oninput="tempFormData.dailySchedules[${dayIdx}].startTime=this.value; updateDayTimes(${dayIdx});">
                         </div>
                     </div>
                     <div class="space-y-3">
@@ -279,7 +279,7 @@
                                 <div class="flex gap-2 items-center mt-3">
                                     <input class="flex-1 bg-neutral-50 px-3 py-2 rounded-xl text-xs outline-none" placeholder="備註..." value="${spot.notes||''}" oninput="tempFormData.dailySchedules[${dayIdx}].spots[${spotIdx}].notes=this.value">
                                     <div class="w-24 bg-neutral-100 px-3 py-2 rounded-xl flex items-center gap-1">
-                                        <input type="number" class="w-full bg-transparent text-xs outline-none text-right font-bold" placeholder="0" value="${spot.duration||''}" oninput="tempFormData.dailySchedules[${dayIdx}].spots[${spotIdx}].duration=this.value" onchange="renderPlanForm(document.getElementById('view-container'))">
+                                        <input type="number" class="w-full bg-transparent text-xs outline-none text-right font-bold" placeholder="0" value="${spot.duration||''}" oninput="tempFormData.dailySchedules[${dayIdx}].spots[${spotIdx}].duration=this.value; updateDayTimes(${dayIdx});">
                                         <span class="text-[9px] text-neutral-400 font-bold">MIN</span>
                                     </div>
                                 </div>
@@ -361,6 +361,10 @@
                         class="text-neutral-400">返回</button>
 
                     <div class="flex gap-4 items-center">
+                        <button onclick="exportPlanPDF()"
+                            class="text-xs text-neutral-500">
+                            匯出PDF
+                        </button>
                         <button onclick="currentView='plan-form'; render()" 
                             class="text-xs text-neutral-500">編輯</button>
                         <button onclick="triggerDelete('plan','${editingId}')" 
@@ -605,6 +609,55 @@
         }
 
         function handleCatReorder(id) { if (!selectedCatId) { selectedCatId = id; } else if (selectedCatId === id) { selectedCatId = null; } else { const idx1 = categories.findIndex(c => c.id === selectedCatId); const idx2 = categories.findIndex(c => c.id === id); [categories[idx1], categories[idx2]] = [categories[idx2], categories[idx1]]; selectedCatId = null; saveData(); } render(); }
+
+        function updateDayTimes(dayIdx){
+            const container = document.querySelectorAll('#plan-form-content .mb-10')[dayIdx];
+            if(!container) return;
+
+            let day = tempFormData.dailySchedules[dayIdx];
+            let currentTime = day.startTime;
+
+            const cards = container.querySelectorAll('.group');
+
+            cards.forEach((card, i)=>{
+                const spot = day.spots[i];
+                const start = currentTime;
+                const end = addMinutes(start, parseInt(spot.duration)||0);
+                currentTime = end;
+
+                const timeLabel = card.querySelector('.font-mono');
+                if(timeLabel){
+                    timeLabel.innerText = `${start} - ${end}`;
+                }
+            });
+        }
+
+        function exportPlanPDF(){
+            const plan = tempFormData;
+            let content = `${plan.name}\n`;
+            content += `${getDateRange(plan.startDate, plan.days)}\n\n`;
+
+            plan.dailySchedules.forEach((day, d)=>{
+                content += `DAY ${d+1}\n`;
+                let currentTime = day.startTime;
+
+                (day.spots||[]).forEach(spot=>{
+                    const start = currentTime;
+                    const end = addMinutes(start, parseInt(spot.duration)||0);
+                    currentTime = end;
+                    content += `${start}-${end} ${spot.name||''}\n`;
+                });
+
+                content += `\n`;
+            });
+
+            const blob = new Blob([content], {type:'application/pdf'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${plan.name}.pdf`;
+            a.click();
+        }
 
         render();
     </script>
